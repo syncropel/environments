@@ -1,0 +1,65 @@
+# ==============================================================================
+#  Syncropel System Environment Recipe
+# ==============================================================================
+#
+#  ID:          syncropel/browser-automation:1.0.0
+#  Description: An environment with Playwright for browser automation, web
+#               scraping, and end-to-end testing. Includes all necessary
+#               system-level browser dependencies.
+#
+# ==============================================================================
+
+description: "An environment with Playwright for browser automation and web scraping."
+
+tools:
+  python:
+    packages:
+      # --- Browser Automation & Scraping Stack ---
+      - "playwright>=1.42.0"
+      - "beautifulsoup4>=4.9.0,<5.0.0"
+
+      # --- Core Syncropel Packages (Copied from 'default' for self-containment) ---
+      - "fastapi>=0.110.0"
+      - "uvicorn[standard]>=0.29.0"
+      - "pydantic>=2.0,<3.0"
+      - "cx-core-schemas @ git+https://github.com/syncropel/cx-core-schemas.git@v0.2.6"
+      - "structlog>=24.1.0"
+      - "rich>=13.0.0"
+      - "python-dotenv>=1.0.0"
+      - "pyyaml>=6.0"
+      - "lark>=1.1.9"
+      - "jinja2>=3.1.0"
+      - "httpx[http2]>=0.25.0"
+      - "markdown>=3.6"
+      - "cryptography>=42.0.0"
+
+  system:
+    packages:
+      # --- Core Dependencies ---
+      - "python312"
+      - "git"
+      - "unixodbc"
+
+      # --- System-level dependencies required by Playwright/Chromium ---
+      # This comprehensive list prevents common "missing lib" errors in containers.
+      - "glib"
+      - "nspr"
+      - "nss"
+      - "dbus"
+      - "atk"
+      - "at-spi2-atk"
+      - "cups"
+      - "expat"
+      - "libxcb"
+      - "libxkbcommon"
+      - "xorg.libX11"
+      - "xorg.libXcomposite"
+      - "xorg.libXdamage"
+      - "xorg.libXext"
+      - "xorg.libXfixes"
+      - "xorg.libXrandr"
+      - "mesa"
+      - "cairo"
+      - "pango"
+      - "systemd"
+      - "alsa-lib"

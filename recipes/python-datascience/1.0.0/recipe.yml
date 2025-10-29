@@ -1,33 +1,59 @@
-description: "A comprehensive environment for data analysis, machine learning, and visualization (v1.0.0)."
+# ==============================================================================
+#  Syncropel System Environment Recipe
+# ==============================================================================
+#
+#  ID:          syncropel/python-datascience:1.0.0
+#  Description: A comprehensive environment for data analysis, machine learning,
+#               and visualization. Includes pandas, numpy, scikit-learn, and
+#               the core vector search stack (lancedb, fastembed).
+#
+# ==============================================================================
+
+description: "A comprehensive environment for data analysis, machine learning, and visualization."
+
 tools:
   python:
     packages:
-      # Data Science Stack
+      # --- Data Science & ML Stack ---
       - "pandas>=2.0.0"
       - "numpy"
       - "scikit-learn"
       - "matplotlib"
       - "seaborn"
+
+      # --- Data Formats & Storage ---
       - "pyarrow>=15.0.0"
+      - "openpyxl>=3.1.0" # For Excel support in pandas
+
+      # --- Vector Search & AI ---
       - "lancedb>=0.6.1"
       - "fastembed>=0.2.7"
-      # Inherited from 'default'
-      - "cx-core-schemas @ git+https://github.com/syncropel/cx-core-schemas.git@v0.2.6"
+      - "tiktoken>=0.7.0"
+
+      # --- Core Syncropel Packages (Copied from 'default' for self-containment) ---
       - "fastapi>=0.110.0"
       - "uvicorn[standard]>=0.29.0"
       - "pydantic>=2.0,<3.0"
+      - "cx-core-schemas @ git+https://github.com/syncropel/cx-core-schemas.git@v0.2.6"
       - "structlog>=24.1.0"
       - "rich>=13.0.0"
+      - "python-dotenv>=1.0.0"
       - "pyyaml>=6.0"
+      - "lark>=1.1.9"
       - "jinja2>=3.1.0"
       - "httpx[http2]>=0.25.0"
-      - "python-dotenv>=1.0.0"
-      - "lark>=1.1.9"
       - "markdown>=3.6"
+      - "cryptography>=42.0.0"
+
   system:
     packages:
-      - "nixpkgs#python312"
-      - "nixpkgs#git"
-      - "nixpkgs#unixodbc"
-      - "nixpkgs#gcc"
-      - "nixpkgs#zlib"
+      # --- Core Dependencies ---
+      - "python312"
+      - "git"
+      - "unixodbc"
+
+      # --- Additional System Dependencies for Data Science ---
+      # Required for building wheels for some scientific packages.
+      - "gcc"
+      # Required by matplotlib and other graphics libraries.
+      - "zlib"

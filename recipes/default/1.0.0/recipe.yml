@@ -1,21 +1,49 @@
-description: "The lean, default runtime for the cx-server and basic flows. Contains only essential packages."
+# ==============================================================================
+#  Syncropel System Environment Recipe
+# ==============================================================================
+#
+#  ID:          syncropel/default:1.0.0
+#  Description: The lean, default runtime for the cx-server orchestrator and
+#               basic shell operations. Contains only the essential packages
+#               required for the core Syncropel engine to function.
+#
+# ==============================================================================
+
+description: "The lean, default runtime for the cx-server and basic shell operations."
+
 tools:
   python:
     packages:
-      - "cx-core-schemas @ git+https://github.com/syncropel/cx-core-schemas.git@v0.2.6"
+      # Core application framework and server
       - "fastapi>=0.110.0"
       - "uvicorn[standard]>=0.29.0"
+
+      # Data contracts and validation
       - "pydantic>=2.0,<3.0"
+      - "cx-core-schemas @ git+https://github.com/syncropel/cx-core-schemas.git@v0.2.6"
+
+      # Shell UI, logging, and configuration
       - "structlog>=24.1.0"
       - "rich>=13.0.0"
-      - "pyyaml>=6.0"
-      - "jinja2>=3.1.0"
-      - "httpx[http2]>=0.25.0"
       - "python-dotenv>=1.0.0"
+      - "pyyaml>=6.0"
+
+      # Command language parsing and templating
       - "lark>=1.1.9"
+      - "jinja2>=3.1.0"
+
+      # Networking and content rendering
+      - "httpx[http2]>=0.25.0"
       - "markdown>=3.6"
+      - "cryptography>=42.0.0" # For VFS token manager
+
   system:
     packages:
-      - "nixpkgs#python312"
-      - "nixpkgs#git"
-      - "nixpkgs#unixodbc"
+      # The specific Python interpreter version
+      - "python312"
+
+      # Essential command-line tools
+      - "git"
+
+      # Required for certain database drivers (e.g., MSSQL)
+      - "unixodbc"
