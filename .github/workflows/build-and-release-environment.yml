@@ -6,7 +6,7 @@
 #  Action:       1. Parses the environment name and version from the tag.
 #                2. Validates that a corresponding recipe file exists.
 #                3. Builds the environment in an isolated Nix shell.
-#                4. Packages the environment into a version-agnostic, hash-named tarball.
+#                4. Packages the environment into a PORTABLE, hash-named tarball.
 #                5. Creates a new GitHub Release for that specific tag.
 #                6. Uploads the tarball as the sole release artifact.
 #
@@ -101,16 +101,12 @@ jobs:
           echo "  - Building environment in ${TEMP_ENV_DIR}"
 
           # --- The Core Build Command ---
-          # CHANGED: Use the globally installed uv command, not from venv
-          # 1. `nix-shell -p ...`: Starts a temporary shell with all system dependencies available.
-          # 2. `--run "..."`: Executes the command string inside that shell.
-          # 3. We find the full path to the python executable provided by Nix.
-          # 4. We use that full path to create a standard Python virtual environment.
-          # 5. We pipe the requirements list directly into uv's stdin for fast installation.
+          # CHANGED: Create a PORTABLE virtual environment using --copies flag
+          # This copies the Python binary instead of symlinking, making it relocatable
           nix-shell -p ${SYS_PACKAGES} --run "
             PYTHON_EXEC=\$(command -v python3.12) && \
             if [ -z \"\$PYTHON_EXEC\" ]; then echo '::error::python3.12 not found in Nix shell'; exit 1; fi && \
-            \$PYTHON_EXEC -m venv ${TEMP_ENV_DIR}/env && \
+            \$PYTHON_EXEC -m venv --copies ${TEMP_ENV_DIR}/env && \
             echo '${PY_PACKAGES_REQ_FORMAT}' | uv pip install --python ${TEMP_ENV_DIR}/env/bin/python --no-cache-dir -r -
           "
 
