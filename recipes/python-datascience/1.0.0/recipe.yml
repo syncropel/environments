@@ -1,0 +1,33 @@
+description: "A comprehensive environment for data analysis, machine learning, and visualization (v1.0.0)."
+tools:
+  python:
+    packages:
+      # Data Science Stack
+      - "pandas>=2.0.0"
+      - "numpy"
+      - "scikit-learn"
+      - "matplotlib"
+      - "seaborn"
+      - "pyarrow>=15.0.0"
+      - "lancedb>=0.6.1"
+      - "fastembed>=0.2.7"
+      # Inherited from 'default'
+      - "cx-core-schemas @ git+https://github.com/syncropel/cx-core-schemas.git@v0.2.6"
+      - "fastapi>=0.110.0"
+      - "uvicorn[standard]>=0.29.0"
+      - "pydantic>=2.0,<3.0"
+      - "structlog>=24.1.0"
+      - "rich>=13.0.0"
+      - "pyyaml>=6.0"
+      - "jinja2>=3.1.0"
+      - "httpx[http2]>=0.25.0"
+      - "python-dotenv>=1.0.0"
+      - "lark>=1.1.9"
+      - "markdown>=3.6"
+  system:
+    packages:
+      - "nixpkgs#python312"
+      - "nixpkgs#git"
+      - "nixpkgs#unixodbc"
+      - "nixpkgs#gcc"
+      - "nixpkgs#zlib"

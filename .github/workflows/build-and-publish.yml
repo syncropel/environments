@@ -1,0 +1,85 @@
+name: Build and Publish System Environments
+
+on:
+  push:
+    tags:
+      - "v*" # Trigger on release tags like v1.0.0
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.PAT_FOR_CI }}
+
+      - name: Install Nix, uv, and yq
+        uses: cachix/install-nix-action@v27
+        with:
+          nix_path: nixpkgs=channel:nixos-23.11
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+      - run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          source "$HOME/.cargo/env"
+          sudo wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O /usr/bin/yq && sudo chmod +x /usr/bin/yq
+
+      - name: Build Environments and Generate Registry
+        id: build
+        run: |
+          set -e
+          mkdir -p ./artifacts
+          echo "environments:" > ./new-registry.yaml
+
+          for recipe_file in $(find recipes -name "recipe.yml"); do
+            echo "--- Processing Recipe: ${recipe_file} ---"
+            
+            # --- Definitive Path-Based Logic ---
+            RECIPE_VERSION=$(basename $(dirname ${recipe_file}))
+            RECIPE_NAME=$(basename $(dirname $(dirname ${recipe_file})))
+            RECIPE_ID="syncropel/${RECIPE_NAME}:${RECIPE_VERSION}"
+            RECIPE_HASH=$(sha256sum ${recipe_file} | cut -d' ' -f1 | head -c 16)
+            ARTIFACT_NAME="env-${RECIPE_HASH}.tar.gz"
+            echo "  ID: ${RECIPE_ID}, Hash: ${RECIPE_HASH}, Artifact: ${ARTIFACT_NAME}"
+            
+            # Extract packages using yq
+            SYS_PACKAGES=$(yq e '.tools.system.packages | join(" ")' ${recipe_file})
+            # Use yq to format python packages as a requirements.txt string
+            PY_PACKAGES_REQ_FORMAT=$(yq e '.tools.python.packages | .[]' ${recipe_file})
+            
+            # Build the environment in a temporary directory
+            TEMP_ENV_DIR=$(mktemp -d)
+            echo "  Building in ${TEMP_ENV_DIR}..."
+            # Use nix-shell to provide system deps, then create venv and install with uv
+            nix-shell -p ${SYS_PACKAGES} --run "python3.12 -m venv ${TEMP_ENV_DIR}/env && echo '${PY_PACKAGES_REQ_FORMAT}' | ${TEMP_ENV_DIR}/env/bin/uv pip install --no-cache-dir -r -"
+            
+            echo "  Creating tarball..."
+            tar -czf ./artifacts/${ARTIFACT_NAME} -C ${TEMP_ENV_DIR} env
+            
+            # Append to the new registry file
+            RECIPE_DESC=$(yq e '.description' ${recipe_file})
+            echo "  - id: \"${RECIPE_ID}\"" >> ./new-registry.yaml
+            echo "    description: \"${RECIPE_DESC}\"" >> ./new-registry.yaml
+            echo "    recipe_hash: \"sha256:${RECIPE_HASH}\"" >> ./new-registry.yaml
+            echo "    artifact_url: \"https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/${ARTIFACT_NAME}\"" >> ./new-registry.yaml
+          done
+
+          mv ./new-registry.yaml ./registry.yaml
+
+      - name: Create GitHub Release and Upload Artifacts
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ./artifacts/*.tar.gz
+          generate_release_notes: true
+
+      - name: Commit and Push Updated Registry
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          git add registry.yaml
+          git commit -m "ci: Update registry.yaml for release ${{ github.ref_name }}" || echo "No changes to commit"
+          git push

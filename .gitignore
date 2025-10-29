@@ -1,0 +1,41 @@
+# Byte-compiled / optimized files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+.Python
+build/
+dist/
+downloads/
+eggs/
+.eggs/
+*.egg-info/
+*.egg
+
+# Nix build artifacts
+result
+result-*
+
+# Local virtual environments
+.venv/
+.pyinstaller-venv/
+
+# Local archives and outputs
+*.tar.gz
+outputs/
+
+# IDE and editor configuration
+.idea/
+.vscode/
+
+# OS-generated files
+.DS_Store
+*.swp
+
+# Test artifacts
+.pytest_cache/
+.cx/
+result
+.env
+static/
