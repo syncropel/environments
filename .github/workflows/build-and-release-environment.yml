@@ -1,0 +1,119 @@
+# .github/workflows/build-and-release-environment.yml
+
+name: Build and Release Single Environment
+
+on:
+  push:
+    tags:
+      - "*/*" # Trigger on any namespaced tag like 'python-datascience/v1.0.0'
+
+jobs:
+  build-and-release:
+    name: Build, Package, and Release Environment
+    runs-on: ubuntu-latest
+    permissions:
+      # This permission is essential for the softprops/action-gh-release action
+      # to create a GitHub Release on your repository.
+      contents: write
+
+    steps:
+      - name: Checkout Repository Code
+        uses: actions/checkout@v4
+
+      - name: Install Nix, uv, and yq
+        uses: cachix/install-nix-action@v27
+        with:
+          # Pin to a stable channel for CI reproducibility
+          nix_path: nixpkgs=channel:nixos-23.11
+          # Enable flakes for modern Nix features if needed in the future
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+      - run: |
+          # Install uv, the fast Python package installer
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          source "$HOME/.cargo/env"
+
+          # Install yq, a lightweight and portable command-line YAML processor
+          sudo wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O /usr/bin/yq && sudo chmod +x /usr/bin/yq
+
+      - name: Parse Environment Name and Version from Tag
+        id: vars
+        run: |
+          # This step uses robust shell parameter expansion to parse the Git tag.
+          # Example tag: python-datascience/v1.0.1
+          TAG="${{ github.ref_name }}"
+
+          # ENV_NAME becomes "python-datascience"
+          ENV_NAME="${TAG%/*}"
+
+          # ENV_VERSION becomes "1.0.1"
+          ENV_VERSION_TAG="${TAG#*/}"
+          ENV_VERSION="${ENV_VERSION_TAG#v}"
+
+          echo "Parsed Environment Name: ${ENV_NAME}"
+          echo "Parsed Environment Version: ${ENV_VERSION}"
+
+          # Pass these variables to subsequent steps
+          echo "env_name=${ENV_NAME}" >> $GITHUB_OUTPUT
+          echo "env_version=${ENV_VERSION}" >> $GITHUB_OUTPUT
+
+      - name: Build Specific Environment
+        id: build
+        run: |
+          set -e
+          mkdir -p ./artifacts
+
+          # Construct the path to the recipe file based on the parsed tag.
+          RECIPE_FILE="recipes/${{ steps.vars.outputs.env_name }}/${{ steps.vars.outputs.env_version }}/recipe.yml"
+
+          # --- Critical Validation Step ---
+          # Fail fast if a tag was pushed but the corresponding recipe file doesn't exist.
+          if [ ! -f "${RECIPE_FILE}" ]; then
+            echo "::error::Recipe file not found for tag '${{ github.ref_name }}'. Expected to find it at '${RECIPE_FILE}'."
+            exit 1
+          fi
+
+          echo "--- Processing Recipe: ${RECIPE_FILE} ---"
+
+          # Generate a content hash of the recipe file. This ensures that if the recipe
+          # content changes but the version doesn't, we get a new artifact hash.
+          RECIPE_HASH=$(sha256sum ${RECIPE_FILE} | cut -d' ' -f1 | head -c 16)
+          ARTIFACT_NAME="env-${RECIPE_HASH}.tar.gz"
+          echo "artifact_name=${ARTIFACT_NAME}" >> $GITHUB_OUTPUT
+          echo "  - Recipe Hash: ${RECIPE_HASH}"
+          echo "  - Artifact Name: ${ARTIFACT_NAME}"
+
+          # Extract system and Python packages from the recipe file using yq.
+          SYS_PACKAGES=$(yq e '.tools.system.packages | join(" ")' ${RECIPE_FILE})
+          # Format Python packages as a newline-separated list for requirements.txt format.
+          PY_PACKAGES_REQ_FORMAT=$(yq e '.tools.python.packages | .[]' ${RECIPE_FILE})
+
+          # Create a temporary directory for the environment build to keep things clean.
+          TEMP_ENV_DIR=$(mktemp -d)
+          echo "  - Building environment in ${TEMP_ENV_DIR}"
+
+          # --- The Core Build Command ---
+          # 1. `nix-shell -p ...`: Starts a temporary shell with all system dependencies available.
+          # 2. `--run "..."`: Executes the command string inside that shell.
+          # 3. `python3.12 -m venv ...`: Creates a standard Python virtual environment.
+          # 4. `echo '...' | uv pip install -r -`: Pipes the requirements list directly into
+          #    uv's stdin, which is faster and cleaner than creating a temporary file.
+          nix-shell -p ${SYS_PACKAGES} --run "python3.12 -m venv ${TEMP_ENV_DIR}/env && echo '${PY_PACKAGES_REQ_FORMAT}' | ${TEMP_ENV_DIR}/env/bin/uv pip install --no-cache-dir -r -"
+
+          echo "  - Creating tarball artifact..."
+          # The -C flag changes to the specified directory before archiving, which ensures
+          # the tarball contains `env/...` instead of the full temporary path.
+          tar -czf ./artifacts/${ARTIFACT_NAME} -C ${TEMP_ENV_DIR} env
+
+      - name: Create GitHub Release and Upload Artifact
+        uses: softprops/action-gh-release@v2
+        with:
+          # Use the full, namespaced Git tag for the release name.
+          tag_name: ${{ github.ref_name }}
+
+          # This action will create a new release or update an existing one.
+          # It will upload the single, specific artifact built in the previous step.
+          files: ./artifacts/${{ steps.build.outputs.artifact_name }}
+
+          # Automatically generate release notes from commit messages.
+          generate_release_notes: true

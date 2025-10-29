@@ -1,0 +1,69 @@
+name: Update Environment Registry
+
+on:
+  workflow_dispatch: # Allows manual triggering
+  schedule:
+    - cron: "0 * * * *" # Runs at the top of every hour
+
+jobs:
+  update-registry:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # To commit and push the registry file
+      packages: read # To read releases
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.PAT_FOR_CI }}
+
+      - name: Install GitHub CLI and yq
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gh
+          sudo wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O /usr/bin/yq && sudo chmod +x /usr/bin/yq
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Generate Registry from GitHub Releases
+        id: generate
+        run: |
+          set -e
+          echo "environments:" > ./new-registry.yaml
+
+          # Fetch all releases, get the tag and URL for tar.gz assets
+          gh release list --repo ${{ github.repository }} --json tagName,assets --jq '.[] | .tagName + " " + (.assets[] | select(.name | endswith(".tar.gz")) | .url)' | \
+          while read -r TAG ASSET_URL; do
+            # Filter only for our namespaced environment tags
+            if [[ "$TAG" == */v* ]]; then
+              echo "--- Processing Release: ${TAG} ---"
+              ENV_NAME="${TAG%/*}"
+              ENV_VERSION_TAG="${TAG#*/}"
+              ENV_VERSION="${ENV_VERSION_TAG#v}"
+              RECIPE_ID="syncropel/${ENV_NAME}:${ENV_VERSION}"
+              RECIPE_FILE_PATH="recipes/${ENV_NAME}/${ENV_VERSION}/recipe.yml"
+
+              # Fetch the recipe content for this specific tag to get description and hash
+              gh api "repos/${{ github.repository }}/contents/${RECIPE_FILE_PATH}?ref=${TAG}" --jq '.content' | base64 --decode > temp_recipe.yml
+
+              RECIPE_HASH=$(sha256sum temp_recipe.yml | cut -d' ' -f1 | head -c 16)
+              RECIPE_DESC=$(yq e '.description' temp_recipe.yml)
+
+              echo "  - id: \"${RECIPE_ID}\"" >> ./new-registry.yaml
+              echo "    description: \"${RECIPE_DESC}\"" >> ./new-registry.yaml
+              echo "    recipe_hash: \"sha256:${RECIPE_HASH}\"" >> ./new-registry.yaml
+              echo "    artifact_url: \"${ASSET_URL}\"" >> ./new-registry.yaml
+            fi
+          done
+
+          mv ./new-registry.yaml ./registry.yaml
+
+      - name: Commit and Push Updated Registry
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          git add registry.yaml
+          # Use --allow-empty in case no new releases were found
+          git commit --allow-empty -m "ci: Update environment registry from releases"
+          git push
