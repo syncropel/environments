@@ -46,4 +46,4 @@ tools:
       - "git"
 
       # Required for certain database drivers (e.g., MSSQL)
-      - "unixodbc"
+      - "unixODBC" # CHANGED: Fixed capitalization from 'unixodbc' to 'unixODBC'
