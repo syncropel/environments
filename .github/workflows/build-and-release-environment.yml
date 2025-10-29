@@ -101,6 +101,7 @@ jobs:
           echo "  - Building environment in ${TEMP_ENV_DIR}"
 
           # --- The Core Build Command ---
+          # CHANGED: Use the globally installed uv command, not from venv
           # 1. `nix-shell -p ...`: Starts a temporary shell with all system dependencies available.
           # 2. `--run "..."`: Executes the command string inside that shell.
           # 3. We find the full path to the python executable provided by Nix.
@@ -110,7 +111,7 @@ jobs:
             PYTHON_EXEC=\$(command -v python3.12) && \
             if [ -z \"\$PYTHON_EXEC\" ]; then echo '::error::python3.12 not found in Nix shell'; exit 1; fi && \
             \$PYTHON_EXEC -m venv ${TEMP_ENV_DIR}/env && \
-            echo '${PY_PACKAGES_REQ_FORMAT}' | ${TEMP_ENV_DIR}/env/bin/uv pip install --no-cache-dir -r -
+            echo '${PY_PACKAGES_REQ_FORMAT}' | uv pip install --python ${TEMP_ENV_DIR}/env/bin/python --no-cache-dir -r -
           "
 
           echo "  - Creating tarball artifact..."
